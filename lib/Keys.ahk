@@ -71,9 +71,8 @@ class KeyActions {
 
 GetDefaultKeyBindings() {
     d := Map()
-    ; Tap-toggle of the CapsLock LED breaks IME typing (uppercase bypasses pinyin);
-    ; opt back in with press_caps=toggleCapsLock.
-    d["press_caps"] := "none"
+    ; Default: tap toggles Caps LED (Windows-like). IME users: press_caps=none in ini.
+    d["press_caps"] := "toggleCapsLock"
 
     d["caps_a"] := "moveWordLeft"
     d["caps_b"] := "moveDown(10)"

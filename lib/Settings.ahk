@@ -48,9 +48,9 @@ class Settings {
 
             . "remoteForegroundTitleHints=`n`n[Keys]`n"
 
-            . "; press_caps=none  recommended (toggleCapsLock breaks IME)`n"
+            . "; press_caps=toggleCapsLock  tap toggles Caps LED; none if IME breaks`n"
 
-            . "press_caps=none`n",
+            . "press_caps=toggleCapsLock`n",
 
             path, "UTF-8"
 
@@ -200,7 +200,7 @@ class Settings {
 
             return bindings["press_caps"]
 
-        return "none"
+        return "toggleCapsLock"
 
     }
 

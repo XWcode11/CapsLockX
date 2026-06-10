@@ -129,7 +129,7 @@ RunNormalizeTests() {
 ; --- Default bindings ---
 RunDefaultBindingsTests() {
     d := GetDefaultKeyBindings()
-    AssertEqual(d["press_caps"], "none", "press_caps default none for IME")
+    AssertEqual(d["press_caps"], "toggleCapsLock", "press_caps default toggles Caps LED")
     AssertEqual(d["caps_q"], "none", "caps_q disabled")
     AssertEqual(d["caps_c"], "copy", "caps_c system copy")
     AssertEqual(d["caps_1"], "winbind_activate(1)", "caps_1 winbind")
@@ -476,9 +476,9 @@ RunRemoteForegroundTests() {
     AssertTrue(!capsLockBusy, "ForceRelease clears busy")
     AssertTrue(!g_layerHotkeysOn, "ForceRelease clears layer hotkeys")
 
-    AssertEqual(Settings.GetPressCaps(Map()), "none", "GetPressCaps default must not toggle Caps LED")
+    AssertEqual(Settings.GetPressCaps(Map()), "toggleCapsLock", "GetPressCaps default toggles Caps LED")
     d := GetDefaultKeyBindings()
-    AssertEqual(d["press_caps"], "none", "default press_caps does not break IME")
+    AssertEqual(d["press_caps"], "toggleCapsLock", "default press_caps toggles Caps LED")
 }
 
 ; Every default binding must classify as repeat or single-shot consistently.
