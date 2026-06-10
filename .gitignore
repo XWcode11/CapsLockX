@@ -18,6 +18,21 @@ CapsLock+settingsDemo.ini
 youdaoApiKey.ahk
 gain.md
 
+# CapsLockX (v2 rewrite)
+CapsLockX.exe
+CapsLockX-error.log
+CapsLockX-exit.log
+tests/test-results.log
+build_test.ahk
+build_test.exe
+compile_check.ahk
+compile_check.exe
+compile_log.txt
+ahk2exe_out.txt
+ahk2exe_err.txt
+ahk2exe_verbose.txt
+tools/
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
