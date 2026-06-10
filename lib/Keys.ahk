@@ -1,11 +1,21 @@
 ; CapsLockX key actions and Capslox default bindings
 ; Actions use CapsSend (SendInput + SendLevel 0) — same role as CapsLock+ SendInput.
 
+; Repeat policy: hold-to-repeat for movement/selection/destructive keys;
+; single fire per press for clipboard, window bind, line ops, etc.
 KeyActionAllowsRepeat(spec) {
     spec := NormalizeActionSpec(spec)
+    if (spec = "none")
+        return false
+    if RegExMatch(spec, "i)^(copy|paste|cut|reload|winPin|openDocs|toggleCapsLock)")
+        return false
+    if RegExMatch(spec, "i)^winbind")
+        return false
+    if RegExMatch(spec, "i)^(enter|home|end|deleteLine|deleteToLine|selectCurrentWord)")
+        return false
     if RegExMatch(spec, "i)^(move|select)")
         return true
-    if RegExMatch(spec, "i)^winbind")
+    if RegExMatch(spec, "i)^(backspace|delete)$")
         return true
     return false
 }

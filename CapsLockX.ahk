@@ -13,6 +13,7 @@
 #Include lib\BindWins.ahk
 
 #Include lib\Settings.ahk
+#Include lib\CapsRepeatGuard.ahk
 
 
 
@@ -136,8 +137,10 @@ HandleCapsLockDown(suppressTapToggle := false) {
 
     try
         KeyWait("CapsLock")
-    finally
+    finally {
         capsLockHeld := false ; release #HotIf layer first (CapsLock+ CapsLock:="")
+        CapsRepeatGuard.Reset()
+    }
 
     if (capsLockTapToggle) {
         spec := Settings.GetPressCaps(keyBindings)
@@ -167,11 +170,11 @@ CapsKeyHandler(settingKey, hotkeyName, *) {
     capsLockTapToggle := false
     try {
         spec := keyBindings.Get(settingKey, "none")
-        if !KeyActionAllowsRepeat(spec) {
-            if (A_TimeSinceThisHotkey < 50 && A_PriorHotkey = hotkeyName)
-                return
-        }
+        if CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+            return
         RunKeyAction(spec, winBinder, hotkeyName)
+        if !KeyActionAllowsRepeat(spec)
+            CapsRepeatGuard.Arm(hotkeyName)
     } catch as err {
         LogCapsLockX("CapsKeyHandler [" settingKey "]: " err.Message)
     }
@@ -180,25 +183,19 @@ CapsKeyHandler(settingKey, hotkeyName, *) {
 
 
 WinBindHandler(n, hotkeyName, *) {
-
     global capsLockTapToggle, keyBindings, winBinder
-
     capsLockTapToggle := false
-
     try {
-
         sk := "caps_win_" n
-
         spec := keyBindings.Get(sk, "winbind_binding(" n ")")
-
+        if CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+            return
         RunKeyAction(spec, winBinder, hotkeyName)
-
+        if !KeyActionAllowsRepeat(spec)
+            CapsRepeatGuard.Arm(hotkeyName)
     } catch as err {
-
         LogCapsLockX("WinBindHandler [" n "]: " err.Message)
-
     }
-
 }
 
 #Include lib\CapsHotkeys.ahk

@@ -5,6 +5,7 @@
 #Include ..\lib\IdxStore.ahk
 #Include ..\lib\Keys.ahk
 #Include ..\lib\BindWins.ahk
+#Include ..\lib\CapsRepeatGuard.ahk
 
 global g_passed := 0
 global g_failed := 0
@@ -224,6 +225,23 @@ RunActivateEmptyGroupTest()
 RunTapTimesTests()
 RunUtilTests()
 RunBindTypeZeroTest()
+RunRepeatPolicyTests()
+
+RunRepeatPolicyTests() {
+    AssertTrue(KeyActionAllowsRepeat("moveDown"), "moveDown allows repeat")
+    AssertTrue(KeyActionAllowsRepeat("selectLeft"), "selectLeft allows repeat")
+    AssertTrue(KeyActionAllowsRepeat("backspace"), "backspace allows repeat")
+    AssertTrue(KeyActionAllowsRepeat("delete"), "delete allows repeat")
+    AssertTrue(!KeyActionAllowsRepeat("copy"), "copy single fire")
+    AssertTrue(!KeyActionAllowsRepeat("paste"), "paste single fire")
+    AssertTrue(!KeyActionAllowsRepeat("winbind_activate(1)"), "winbind_activate single fire")
+    AssertTrue(!KeyActionAllowsRepeat("winbind_binding(2)"), "winbind_binding single fire")
+    AssertTrue(!KeyActionAllowsRepeat("deleteLine"), "deleteLine single fire")
+    AssertTrue(!KeyActionAllowsRepeat("selectCurrentWord"), "selectCurrentWord single fire")
+    AssertEqual(PhysicalKeyFromHotkey("$j"), "j", "physical key from $j")
+    AssertEqual(PhysicalKeyFromHotkey("$#3"), "3", "physical key from $#3")
+    AssertEqual(PhysicalKeyFromHotkey("$Space"), "Space", "physical key from $Space")
+}
 
 summary := "CapsLockX tests: " g_passed " passed, " g_failed " failed"
 OutputLine(summary)
