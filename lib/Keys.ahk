@@ -1,35 +1,39 @@
 ; CapsLockX key actions and Capslox default bindings
+; Actions use CapsSend (SendInput + SendLevel 0) — same role as CapsLock+ SendInput.
+
+KeyActionAllowsRepeat(spec) {
+    spec := NormalizeActionSpec(spec)
+    if RegExMatch(spec, "i)^(move|select)")
+        return true
+    if RegExMatch(spec, "i)^winbind")
+        return true
+    return false
+}
 
 class KeyActions {
     static none(*) {
     }
 
-    static moveLeft(n := 1) => Send("{Left " n "}")
-    static moveRight(n := 1) => Send("{Right " n "}")
-    static moveUp(n := 1) => Send("{Up " n "}")
-    static moveDown(n := 1) => Send("{Down " n "}")
-    static moveWordLeft(n := 1) => Send("^{Left " n "}")
-    static moveWordRight(n := 1) => Send("^{Right " n "}")
-    static backspace(*) => Send("{Backspace}")
-    static delete(*) => Send("{Delete}")
-    static end(*) => Send("{End}")
-    static home(*) => Send("{Home}")
-    static enter(*) => Send("{Enter}")
-    static enterWherever(*) {
-        Send("{End}{Enter}")
-    }
-    static copy(*) => Send("^c")
-    static paste(*) => Send("^v")
-    static cut(*) => Send("^x")
+    static moveLeft(n := 1) => CapsSend("{Left " n "}")
+    static moveRight(n := 1) => CapsSend("{Right " n "}")
+    static moveUp(n := 1) => CapsSend("{Up " n "}")
+    static moveDown(n := 1) => CapsSend("{Down " n "}")
+    static moveWordLeft(n := 1) => CapsSend("^{Left " n "}")
+    static moveWordRight(n := 1) => CapsSend("^{Right " n "}")
+    static backspace(*) => CapsSend("{Backspace}")
+    static delete(*) => CapsSend("{Delete}")
+    static end(*) => CapsSend("{End}")
+    static home(*) => CapsSend("{Home}")
+    static enter(*) => CapsSend("{Enter}")
+    static enterWherever(*) => CapsSend("{End}{Enter}")
+    static copy(*) => CapsSend("^c")
+    static paste(*) => CapsSend("^v")
+    static cut(*) => CapsSend("^x")
     static toggleCapsLock(*) {
         ; Run only after capsLockHeld is cleared so HotIf hotkeys cannot re-enter.
         SetCapsLockState(!GetKeyState("CapsLock", "T"))
     }
-    static reload(*) {
-        global g_hotkeysRegistered
-        g_hotkeysRegistered := false
-        Reload()
-    }
+    static reload(*) => Reload()
     static winPin(*) {
         id := WinExist("A")
         if id
@@ -37,21 +41,21 @@ class KeyActions {
     }
     static openDocs(*) => Run("https://capslox.com/capslock-plus/")
 
-    static deleteLine(*) => Send("{End}+{Home}{Backspace}")
-    static deleteToLineBeginning(*) => Send("+{Home}{Backspace}")
-    static deleteToLineEnd(*) => Send("+{End}{Backspace}")
+    static deleteLine(*) => CapsSend("{End}+{Home}{Backspace}")
+    static deleteToLineBeginning(*) => CapsSend("+{Home}{Backspace}")
+    static deleteToLineEnd(*) => CapsSend("+{End}{Backspace}")
 
-    static selectUp(n := 1) => Send("+{Up " n "}")
-    static selectDown(n := 1) => Send("+{Down " n "}")
-    static selectLeft(n := 1) => Send("+{Left " n "}")
-    static selectRight(n := 1) => Send("+{Right " n "}")
-    static selectHome(*) => Send("+{Home}")
-    static selectEnd(*) => Send("+{End}")
-    static selectWordLeft(n := 1) => Send("+^{Left " n "}")
-    static selectWordRight(n := 1) => Send("+^{Right " n "}")
+    static selectUp(n := 1) => CapsSend("+{Up " n "}")
+    static selectDown(n := 1) => CapsSend("+{Down " n "}")
+    static selectLeft(n := 1) => CapsSend("+{Left " n "}")
+    static selectRight(n := 1) => CapsSend("+{Right " n "}")
+    static selectHome(*) => CapsSend("+{Home}")
+    static selectEnd(*) => CapsSend("+{End}")
+    static selectWordLeft(n := 1) => CapsSend("+^{Left " n "}")
+    static selectWordRight(n := 1) => CapsSend("+^{Right " n "}")
     static selectCurrentWord(*) {
-        Send("^{Left}")
-        Send("+^{Right}")
+        CapsSend("^{Left}")
+        CapsSend("+^{Right}")
     }
 }
 

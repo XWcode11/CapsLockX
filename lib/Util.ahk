@@ -1,7 +1,48 @@
 ; Shared helpers: safe IO, logging, permission checks
 
+LOG_MAX_BYTES := 1048576
+
+RotateLogIfLarge(path) {
+    try {
+        if FileExist(path) && FileGetSize(path) > LOG_MAX_BYTES
+            FileMove(path, path ".old", 1)
+    } catch {
+    }
+}
+
 LogCapsLockX(line) {
-    try FileAppend(Format("{} - {}`n", A_Now, line), A_ScriptDir "\CapsLockX-error.log", "UTF-8")
+    path := A_ScriptDir "\CapsLockX-error.log"
+    RotateLogIfLarge(path)
+    try FileAppend(Format("{} - {}`n", A_Now, line), path, "UTF-8")
+}
+
+LogCapsLockXExit(line) {
+    path := A_ScriptDir "\CapsLockX-exit.log"
+    RotateLogIfLarge(path)
+    try FileAppend(Format("{} - {}`n", A_Now, line), path, "UTF-8")
+}
+
+; Script-generated keys must not re-trigger the Caps layer (InputLevel / SendLevel isolation).
+CapsSend(keys) {
+    prev := A_SendLevel
+    try {
+        SendLevel(0)
+        Send(keys)
+    } finally {
+        SendLevel(prev)
+    }
+}
+
+NotifyWinBind(btnx, bindType, success, detail := "") {
+    try {
+        if !success {
+            TrayTip("窗口绑定失败", detail != "" ? detail : "槽位 " btnx, "Icon! 2")
+            return
+        }
+        mode := bindType = 1 ? "单窗口" : bindType = 2 ? "多窗口" : bindType = 3 ? "同程序全窗口" : ""
+        TrayTip("窗口绑定", "槽位 " btnx (mode != "" ? "：" mode : ""), "Iconi 1")
+    } catch {
+    }
 }
 
 IsScriptDirWritable() {

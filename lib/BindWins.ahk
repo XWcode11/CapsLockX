@@ -106,13 +106,16 @@ class BindWins {
 
     GetWinInfo(btnx, bindType) {
         winId := WinExist("A")
-        if !winId
+        if !winId {
+            NotifyWinBind(btnx, bindType, false, "未检测到活动窗口")
             return
+        }
         try {
             winClass := WinGetClass("ahk_id " winId)
             winExe := WinGetProcessPath("ahk_id " winId)
         } catch {
             LogCapsLockX("GetWinInfo: cannot read active window info")
+            NotifyWinBind(btnx, bindType, false, "无法读取窗口信息")
             return
         }
         ini := this.IniPath()
@@ -126,6 +129,7 @@ class BindWins {
             gx.exe.Set(0, winExe)
             if !FileExist(ini) {
                 LogCapsLockX("GetWinInfo: CapsLock+winsInfosRecorder.ini missing")
+                NotifyWinBind(btnx, 1, false, "绑定数据文件不存在")
                 return
             }
             SafeIniWrite(1, ini, section, "bindType")
@@ -144,6 +148,7 @@ class BindWins {
                 gx.exe.Remove(i)
                 gx.id.Remove(i)
             }
+            NotifyWinBind(btnx, 1, true)
             return
         }
 
@@ -168,21 +173,26 @@ class BindWins {
                     gx.id.Remove(i)
                 }
                 gx.bindType := 1
-            } else {
-                index := gx.id.MaxIndex() + 1
-                Loop index {
-                    if (gx.id.Get(A_Index - 1) = winId)
-                        return
-                }
-                gx.class.Insert(winClass)
-                gx.exe.Insert(winExe)
-                idx := gx.id.Insert(winId)
-                SafeIniWrite(winClass, ini, section, "class_" idx)
-                SafeIniWrite(winExe, ini, section, "exe_" idx)
-                SafeIniWrite(winId, ini, section, "id_" idx)
-                gx.bindType := 2
+                SafeIniWrite(1, ini, section, "bindType")
+                NotifyWinBind(btnx, 1, true)
+                return
             }
+            index := gx.id.MaxIndex() + 1
+            Loop index {
+                if (gx.id.Get(A_Index - 1) = winId) {
+                    NotifyWinBind(btnx, 2, false, "该窗口已在绑定列表")
+                    return
+                }
+            }
+            gx.class.Insert(winClass)
+            gx.exe.Insert(winExe)
+            idx := gx.id.Insert(winId)
+            SafeIniWrite(winClass, ini, section, "class_" idx)
+            SafeIniWrite(winExe, ini, section, "exe_" idx)
+            SafeIniWrite(winId, ini, section, "id_" idx)
+            gx.bindType := 2
             SafeIniWrite(2, ini, section, "bindType")
+            NotifyWinBind(btnx, 2, true)
             return
         }
 
@@ -210,6 +220,7 @@ class BindWins {
                 SafeIniDelete(ini, section, "id_" index)
             }
             SafeIniWrite(3, ini, section, "bindType")
+            NotifyWinBind(btnx, 3, true)
         }
     }
 
