@@ -40,7 +40,7 @@ class KeyActions {
     static paste(*) => CapsSend("^v")
     static cut(*) => CapsSend("^x")
     static toggleCapsLock(*) {
-        ; Run only after capsLockHeld is cleared so HotIf hotkeys cannot re-enter.
+        ; Layer hotkeys are Off after KeyWait; safe to toggle LED.
         SetCapsLockState(!GetKeyState("CapsLock", "T"))
     }
     static reload(*) => Reload()
@@ -71,7 +71,9 @@ class KeyActions {
 
 GetDefaultKeyBindings() {
     d := Map()
-    d["press_caps"] := "toggleCapsLock"
+    ; Tap-toggle of the CapsLock LED breaks IME typing (uppercase bypasses pinyin);
+    ; opt back in with press_caps=toggleCapsLock.
+    d["press_caps"] := "none"
 
     d["caps_a"] := "moveWordLeft"
     d["caps_b"] := "moveDown(10)"
@@ -140,24 +142,32 @@ GetDefaultKeyBindings() {
     return d
 }
 
+; V2 action names only — V1 specs (keyFunc-prefixed, copy_1, doNothing, ...) are not recognized.
 NormalizeActionSpec(spec) {
     spec := Trim(spec)
     if (spec = "")
         return "none"
-    spec := RegExReplace(spec, "^keyFunc_", "")
-    if (spec = "doNothing")
-        return "none"
-    legacyClip := Map(
-        "copy_1", "copy",
-        "paste_1", "paste",
-        "cut_1", "cut",
-        "copy_2", "copy",
-        "paste_2", "paste",
-        "cut_2", "cut"
-    )
-    if legacyClip.Has(spec)
-        return legacyClip[spec]
     return spec
+}
+
+IsLegacyActionSpec(spec) {
+    spec := Trim(spec)
+    if (spec = "")
+        return false
+    if RegExMatch(spec, "i)^keyFunc_")
+        return true
+    if RegExMatch(spec, "i)^(copy|paste|cut)_\d+$")
+        return true
+    if (spec = "doNothing")
+        return true
+    return false
+}
+
+WarnLegacyKeyBindings(bindings) {
+    for key, spec in bindings {
+        if IsLegacyActionSpec(spec)
+            LogCapsLockX("Legacy key spec ignored: " key "=" spec " (use V2 names, e.g. copy/paste)")
+    }
 }
 
 InvokeKeyAction(name, args := "") {

@@ -36,7 +36,21 @@ class Settings {
 
             . "autostart=0`n"
 
-            . "errorTrayTip=0`n`n[Keys]`n",
+            . "errorTrayTip=0`n"
+
+            . "hotkeyStormDiag=1`n"
+
+            . "remoteLayerSuspend=1`n"
+
+            . "remoteForegroundExes=`n"
+
+            . "remoteForegroundClasses=`n"
+
+            . "remoteForegroundTitleHints=`n`n[Keys]`n"
+
+            . "; press_caps=none  recommended (toggleCapsLock breaks IME)`n"
+
+            . "press_caps=none`n",
 
             path, "UTF-8"
 
@@ -172,6 +186,8 @@ class Settings {
 
         }
 
+        WarnLegacyKeyBindings(bindings)
+
         return bindings
 
     }
@@ -184,7 +200,7 @@ class Settings {
 
             return bindings["press_caps"]
 
-        return "toggleCapsLock"
+        return "none"
 
     }
 

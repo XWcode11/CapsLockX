@@ -24,7 +24,7 @@ Write-Host "Compiling -> $outExe"
 $argLine = @(
     '/in', "`"$(Join-Path $Root 'CapsLockX.ahk')`"",
     '/out', "`"$outExe`"",
-    '/icon', "`"$(Join-Path $Root 'capslock+icon.ico')`"",
+    '/icon', "`"$(Join-Path $Root 'capslockx.ico')`"",
     '/base', "`"$AhkBase`"",
     '/cp', 'UTF-8',
     '/silent', 'verbose'
@@ -35,7 +35,7 @@ if ($p.ExitCode -ne 0 -or -not (Test-Path $outExe)) {
 }
 
 Copy-Item (Join-Path $Root "CapsLockX-settings.ini") (Join-Path $Release "CapsLockX-settings.ini") -Force
-Copy-Item (Join-Path $Root "capslock+icon.ico") (Join-Path $Release "capslock+icon.ico") -Force
+Copy-Item (Join-Path $Root "capslockx.ico") (Join-Path $Release "capslockx.ico") -Force
 
 Write-Host "Done. Release contents:"
 Get-ChildItem $Release | Format-Table Name, Length, LastWriteTime -AutoSize

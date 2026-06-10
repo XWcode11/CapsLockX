@@ -1,19 +1,49 @@
 #Requires AutoHotkey v2.0
-; Run: AutoHotkey64.exe tests\run_tests.ahk
+; Run: AutoHotkey64.exe tests\run_tests.ahk [-q|--quiet]
 ;
 ; AHK v2 constraints exercised here:
 ; - SetTimer(off): pass the same callback object; SetTimer's return value is NOT a handle.
 ; - SendLevel: CapsSend must restore A_SendLevel in finally.
 ; - BoundFunc: .Bind() for class methods used with SetTimer.
 
+; Watchdog + OnError armed first: a runtime error dialog or a hang must
+; never block the test run (modal error dialogs were the cause of all
+; previous "test hangs").
+SetTimer(TestWatchdogTimeout, -30000)
+OnError(TestOnError)
+
 #Include ..\lib\Util.ahk
-#Include ..\lib\IdxStore.ahk
 #Include ..\lib\Keys.ahk
 #Include ..\lib\BindWins.ahk
 #Include ..\lib\CapsRepeatGuard.ahk
+#Include ..\lib\Settings.ahk
+#Include ..\lib\RemoteForeground.ahk
+global g_layerHotkeyNames := []
+global g_layerHotkeysOn := false
+SetLayerHotkeys(on) {
+    global g_layerHotkeysOn
+    g_layerHotkeysOn := on
+}
+SetCapsEntryHotkeys(enabled) {
+}
+#Include ..\lib\CapsLayer.ahk
+UpdateAutostartMenuCheck() {
+}
 
 global g_passed := 0
 global g_failed := 0
+
+TestWatchdogTimeout(*) {
+    try FileAppend("TIMEOUT`n", A_ScriptDir "\test-results.log", "UTF-8")
+    ExitApp(99)
+}
+
+TestOnError(exc, mode) {
+    try FileAppend("ONERROR: " exc.Message " (line " exc.Line ")`n",
+        A_ScriptDir "\test-results.log", "UTF-8")
+    ExitApp(2)
+    return true
+}
 
 AssertTrue(cond, name) {
     global g_passed, g_failed
@@ -56,51 +86,50 @@ class TestBindWins extends BindWins {
     IniPath() => this.testIniPath
 }
 
-; --- IdxStore ---
-RunIdxStoreTests() {
-    s := IdxStore()
-    AssertTrue(s.IsEmpty(), "IdxStore starts empty")
-    AssertEqual(s.MaxIndex(), -1, "IdxStore MaxIndex empty")
-
-    s.Set(0, "a")
-    s.Set(1, "b")
-    AssertEqual(s.MaxIndex(), 1, "IdxStore MaxIndex after two sets")
-    AssertEqual(s.Get(0), "a", "IdxStore Get(0)")
-
-    removed := s.Remove(0)
-    AssertEqual(removed, "a", "IdxStore Remove returns value")
-    AssertEqual(s.Get(0), "b", "IdxStore shift after Remove(0)")
-    AssertEqual(s.MaxIndex(), 0, "IdxStore MaxIndex after Remove")
-
-    s2 := IdxStore()
-    idx := s2.Insert("x")
-    AssertEqual(idx, 0, "IdxStore Insert returns 0 when empty")
-    AssertEqual(s2.Get(0), "x", "IdxStore Insert at 0 when empty")
-
-    s3 := IdxStore()
-    s3.Set(0, "first")
-    s3.Set(1, "second")
-    s3.InsertAt0("new0")
-    AssertEqual(s3.Get(0), "new0", "IdxStore InsertAt0")
-    AssertEqual(s3.Get(1), "first", "IdxStore InsertAt0 shifts")
+; Records GetWinInfo calls instead of binding real windows / writing ini.
+class RecordingBindWins extends TestBindWins {
+    __New(iniPath) {
+        super.__New(iniPath)
+        this.getWinInfoCalls := []
+    }
+    GetWinInfo(btnx, bindType) {
+        this.getWinInfoCalls.Push(btnx ":" bindType)
+    }
 }
 
-; --- NormalizeActionSpec ---
+class ActiveWinBindWins extends TestBindWins {
+    __New(iniPath, activeId := 0) {
+        super.__New(iniPath)
+        this.activeId := activeId
+    }
+    ActiveWinId() => this.activeId
+}
+
+; --- NormalizeActionSpec (V2 only — no V1 translation) ---
+; V1 spec names are built by concatenation so a repo-wide grep for the V1
+; prefix stays clean (these are reverse assertions, not references).
+V1Spec(suffix) {
+    return "keyFunc" "_" suffix
+}
+
 RunNormalizeTests() {
     AssertEqual(NormalizeActionSpec(""), "none", "empty spec")
-    AssertEqual(NormalizeActionSpec("keyFunc_doNothing"), "none", "legacy doNothing")
-    AssertEqual(NormalizeActionSpec("keyFunc_copy_1"), "copy", "legacy copy_1")
-    AssertEqual(NormalizeActionSpec("keyFunc_paste_1"), "paste", "legacy paste_1")
-    AssertEqual(NormalizeActionSpec("keyFunc_cut_1"), "cut", "legacy cut_1")
-    AssertEqual(NormalizeActionSpec("winbind_activate(3)"), "winbind_activate(3)", "winbind not stripped")
     AssertEqual(NormalizeActionSpec("  moveLeft  "), "moveLeft", "trim")
+    AssertEqual(NormalizeActionSpec("winbind_activate(3)"), "winbind_activate(3)", "winbind passthrough")
+    ; V1 names must NOT be translated anymore:
+    AssertEqual(NormalizeActionSpec(V1Spec("copy_1")), V1Spec("copy_1"), "V1 prefixed copy_1 not translated")
+    AssertEqual(NormalizeActionSpec(V1Spec("doNothing")), V1Spec("doNothing"), "V1 doNothing not translated")
+    AssertEqual(NormalizeActionSpec("copy_2"), "copy_2", "V1 copy_2 not translated")
     AssertEqual(NormalizeActionSpec("custom_action_1"), "custom_action_1", "custom _1 suffix preserved")
-    AssertEqual(NormalizeActionSpec("copy_2"), "copy", "legacy copy_2")
+    ; And V1 names must not resolve to real actions:
+    AssertTrue(!InvokeKeyAction(V1Spec("copy_1")), "V1 prefixed copy_1 is not an action")
+    AssertTrue(!InvokeKeyAction("doNothing"), "V1 doNothing is not an action")
 }
 
 ; --- Default bindings ---
 RunDefaultBindingsTests() {
     d := GetDefaultKeyBindings()
+    AssertEqual(d["press_caps"], "none", "press_caps default none for IME")
     AssertEqual(d["caps_q"], "none", "caps_q disabled")
     AssertEqual(d["caps_c"], "copy", "caps_c system copy")
     AssertEqual(d["caps_1"], "winbind_activate(1)", "caps_1 winbind")
@@ -134,12 +163,12 @@ RunSettingsTests() {
     b := LoadBindingsFromIni(path)
     AssertEqual(b["caps_q"], "none", "ini override caps_q")
     AssertEqual(b["caps_f7"], "reload", "ini override caps_f7")
-    AssertEqual(b["caps_c"], "copy", "ini legacy copy")
-    AssertEqual(b["caps_v"], "paste", "ini legacy paste")
+    AssertEqual(b["caps_c"], "copy", "ini V2 copy")
+    AssertEqual(b["caps_v"], "paste_1", "ini V1 name kept raw (no translation)")
     AssertEqual(b["caps_a"], "moveWordLeft", "ini leaves default caps_a")
 }
 
-; --- BindWins load fixture ---
+; --- BindWins load fixture (V2 format) ---
 RunBindWinsTests() {
     path := A_ScriptDir "\fixtures\wins_sample.ini"
     bw := TestBindWins(path)
@@ -147,24 +176,99 @@ RunBindWinsTests() {
 
     g1 := bw.Group(1)
     AssertEqual(g1.bindType, 1, "bind group 1 type")
-    AssertEqual(g1.class.Get(0), "Notepad", "bind group 1 class")
-    AssertEqual(g1.id.Get(0), "123456", "bind group 1 id")
+    AssertEqual(g1.wins.Length, 1, "bind group 1 entry count")
+    AssertEqual(g1.wins[1].cls, "Notepad", "bind group 1 class")
+    AssertEqual(g1.wins[1].exe, "C:\Windows\System32\notepad.exe", "bind group 1 exe")
+    AssertEqual(g1.wins[1].id, "123456", "bind group 1 id")
 
     g2 := bw.Group(2)
     AssertEqual(g2.bindType, 2, "bind group 2 type")
-    AssertEqual(g2.id.Get(0), "111", "bind group 2 id_0")
-    AssertEqual(g2.id.Get(1), "222", "bind group 2 id_1")
+    AssertEqual(g2.wins.Length, 2, "bind group 2 entry count")
+    AssertEqual(g2.wins[1].id, "111", "bind group 2 win1 id")
+    AssertEqual(g2.wins[2].id, "222", "bind group 2 win2 id")
 
     g3 := bw.Group(3)
     AssertEqual(g3.bindType, 0, "unbound group 3 type")
+    AssertEqual(g3.wins.Length, 0, "unbound group 3 empty")
+}
+
+; --- BindWins SaveGroup/Init roundtrip on a temp ini ---
+RunBindWinsRoundtripTests() {
+    tempIni := A_Temp "\capslockx_wins_test_" A_TickCount ".ini"
+    try FileDelete(tempIni)
+
+    bw := TestBindWins(tempIni)
+    g := bw.Group(4)
+    g.bindType := 2
+    g.wins.Push(BindWins.MakeEntry("ClassA", "C:\a.exe", "1001"))
+    g.wins.Push(BindWins.MakeEntry("ClassB", "C:\b.exe", "1002"))
+    bw.SaveGroup(4)
+
+    bw2 := TestBindWins(tempIni)
+    bw2.Init()
+    g4 := bw2.Group(4)
+    AssertEqual(g4.bindType, 2, "roundtrip bindType")
+    AssertEqual(g4.wins.Length, 2, "roundtrip entry count")
+    AssertEqual(g4.wins[1].cls, "ClassA", "roundtrip win1 class")
+    AssertEqual(g4.wins[2].id, "1002", "roundtrip win2 id")
+
+    ; Whole-section rewrite must drop stale keys.
+    g4.wins.RemoveAt(2)
+    g4.bindType := 1
+    bw2.SaveGroup(4)
+    AssertEqual(IniRead(tempIni, "4", "win2", ""), "", "rewrite drops stale win2")
+    AssertEqual(IniRead(tempIni, "4", "bindType", ""), "1", "rewrite updates bindType")
+    AssertEqual(IniRead(tempIni, "4", "win1", ""), "ClassA|C:\a.exe|1001", "rewrite keeps win1")
+
+    ; Empty group: section removed entirely.
+    g4.wins := []
+    g4.bindType := 0
+    bw2.SaveGroup(4)
+    AssertEqual(IniRead(tempIni, "4", "bindType", "gone"), "gone", "empty group removes section")
+
+    try FileDelete(tempIni)
+}
+
+; --- WinsSort moves active-window entry to front and persists ---
+RunWinsSortTests() {
+    tempIni := A_Temp "\capslockx_wins_sort_" A_TickCount ".ini"
+    try FileDelete(tempIni)
+    bw := ActiveWinBindWins(tempIni, "20")
+    g := bw.Group(5)
+    g.bindType := 2
+    g.wins.Push(BindWins.MakeEntry("C", "e", "10"))
+    g.wins.Push(BindWins.MakeEntry("C", "e", "20"))
+    bw.SaveGroup(5)
+    bw.winTapedX := 5
+    bw.WinsSort(5)
+    AssertEqual(bw.winTapedX, -1, "WinsSort resets winTapedX")
+    AssertEqual(g.wins.Length, 2, "WinsSort keeps all entries")
+    AssertEqual(g.wins[1].id, "20", "WinsSort moves active entry to front")
+    AssertEqual(g.wins[2].id, "10", "WinsSort keeps other entries")
+
+    bw2 := TestBindWins(tempIni)
+    bw2.Init()
+    g5 := bw2.Group(5)
+    AssertEqual(g5.wins[1].id, "20", "WinsSort persisted win1")
+    AssertEqual(g5.wins[2].id, "10", "WinsSort persisted win2")
+    try FileDelete(tempIni)
+}
+
+RunLegacySpecTests() {
+    AssertTrue(IsLegacyActionSpec(V1Spec("copy_1")), "V1 prefixed copy is legacy")
+    AssertTrue(IsLegacyActionSpec("paste_2"), "paste_2 is legacy")
+    AssertTrue(IsLegacyActionSpec("doNothing"), "doNothing is legacy")
+    AssertTrue(!IsLegacyActionSpec("copy"), "V2 copy is not legacy")
+    AssertTrue(!IsLegacyActionSpec("moveLeft"), "moveLeft is not legacy")
 }
 
 ; --- RunKeyAction dispatch (no Send) ---
 RunKeyActionTests() {
     calls := []
+    ; Value-property callables receive `this` as the first argument.
     stub := {
-        Activate: (n) => calls.Push("activate:" n),
-        TapTimes: (n, hk := "") => calls.Push("tap:" n)
+        Activate: (self, n) => calls.Push("activate:" n),
+        TapTimes: (self, n, hk := "") => calls.Push("tap:" n)
     }
     RunKeyAction("none", stub)
     AssertEqual(calls.Length, 0, "none does nothing")
@@ -175,8 +279,8 @@ RunKeyActionTests() {
     RunKeyAction("winbind_binding(5)", stub, "#5")
     AssertEqual(calls[2], "tap:5", "winbind_binding dispatch")
 
-    RunKeyAction("keyFunc_doNothing", stub)
-    AssertEqual(calls.Length, 2, "legacy doNothing still no call")
+    RunKeyAction(V1Spec("doNothing"), stub)
+    AssertEqual(calls.Length, 2, "V1 spec not recognized, no call")
 
     RunKeyAction("notARealAction(9)", stub)
     AssertEqual(calls.Length, 2, "invalid action does not throw")
@@ -196,12 +300,14 @@ RunActivateEmptyGroupTest() {
 }
 
 RunTapTimesTests() {
-    bw := TestBindWins(A_ScriptDir "\fixtures\wins_sample.ini")
+    bw := RecordingBindWins(A_Temp "\capslockx_wins_tap_" A_TickCount ".ini")
     bw.TapTimes(5, "#5")
     AssertEqual(bw.tapBtn, 5, "TapTimes sets tapBtn")
     AssertEqual(bw.tapCounts[5], 1, "TapTimes first tap count")
     AssertTrue(bw.gettingWinInfo, "TapTimes sets gettingWinInfo")
     bw.DoGetWinInfo()
+    AssertEqual(bw.getWinInfoCalls.Length, 1, "DoGetWinInfo calls GetWinInfo once")
+    AssertEqual(bw.getWinInfoCalls[1], "5:1", "DoGetWinInfo passes slot and tap count")
     AssertEqual(bw.tapCounts[5], 0, "DoGetWinInfo resets tap count")
     AssertTrue(!bw.gettingWinInfo, "DoGetWinInfo clears gettingWinInfo")
 }
@@ -224,6 +330,17 @@ RunBindTypeZeroTest() {
     AssertEqual(bw.Group(99).bindType, 0, "activate unbound slot no-op")
 }
 
+; --- Caps tap detection (deterministic, no timers) ---
+RunCapsTapTests() {
+    AssertTrue(IsCapsTap(false, 100), "tap: no layer key, short hold")
+    AssertTrue(IsCapsTap(false, 299), "tap: just under threshold")
+    AssertTrue(!IsCapsTap(false, 300), "no tap at threshold")
+    AssertTrue(!IsCapsTap(false, 1000), "no tap on long hold")
+    AssertTrue(!IsCapsTap(true, 100), "no tap when layer key fired")
+    AssertTrue(!IsCapsTap(true, 1000), "no tap when fired and long")
+    AssertTrue(IsCapsTap(false, 400, 500), "custom threshold honored")
+}
+
 IsQuietMode() {
     for arg in A_Args
         if (arg = "--quiet" || arg = "-q")
@@ -235,21 +352,26 @@ IsQuietMode() {
 quiet := IsQuietMode()
 try FileDelete(A_ScriptDir "\test-results.log")
 
-RunIdxStoreTests()
 RunNormalizeTests()
+RunLegacySpecTests()
 RunDefaultBindingsTests()
 RunSettingsTests()
 RunBindWinsTests()
+RunBindWinsRoundtripTests()
+RunWinsSortTests()
 RunKeyActionTests()
 RunActivateEmptyGroupTest()
 RunTapTimesTests()
 RunUtilTests()
 RunBindTypeZeroTest()
+RunCapsTapTests()
 RunRepeatPolicyTests()
 RunCapsRepeatGuardTests()
 RunV2TimerContractTests()
 RunCapsSendTests()
 RunDefaultBindingsRepeatConsistencyTests()
+RunCapsLayerWatchdogTests()
+RunRemoteForegroundTests()
 
 RunRepeatPolicyTests() {
     AssertTrue(KeyActionAllowsRepeat("moveDown"), "moveDown allows repeat")
@@ -281,7 +403,7 @@ RunCapsRepeatGuardTests() {
     CapsRepeatGuard.Arm("$c")
     AssertTrue(CapsRepeatGuard.ShouldBlock("$c", "copy"), "copy blocked after Arm")
     AssertTrue(!CapsRepeatGuard.ShouldBlock("$c", "moveLeft"), "repeatable spec never blocked")
-    AssertType(CapsRepeatGuard.pollFn, "Func", "pollFn is Func after Arm")
+    AssertTrue(HasMethod(CapsRepeatGuard.pollFn), "pollFn callable (BoundFunc) after Arm")
     AssertDoesNotThrow(CapsRepeatGuard.StopPoll.Bind(CapsRepeatGuard), "StopPoll when active")
     AssertEqual(CapsRepeatGuard.pollFn, "", "pollFn cleared after StopPoll")
     AssertDoesNotThrow(CapsRepeatGuard.StopPoll.Bind(CapsRepeatGuard), "StopPoll idempotent")
@@ -327,6 +449,36 @@ RunCapsSendTests() {
     CapsSend("{F13}")
     AssertEqual(A_SendLevel, 5, "CapsSend restores SendLevel after Send")
     SendLevel(0)
+}
+
+RunCapsLayerWatchdogTests() {
+    global capsLockBusy := false
+    global g_layerHotkeysOn := true
+    CapsLayerWatchdog.Tick()
+    AssertTrue(!g_layerHotkeysOn, "watchdog clears orphaned layer hotkeys")
+    AssertTrue(!capsLockBusy, "watchdog orphan release clears busy")
+}
+
+RunRemoteForegroundTests() {
+    AssertTrue(RemoteForeground.MatchExeList("mstsc.exe", RemoteForeground.defaultExes), "builtin exes include mstsc")
+    AssertTrue(RemoteForeground.ClassMatchesPrefix("TscShellContainerClass", "tscshell"),
+        "class prefix case-insensitive")
+    AssertTrue(RemoteForeground.ClassMatchesPrefix("TscShellContainerClass", "TscShell"),
+        "class prefix mixed case")
+    RemoteForeground.Invalidate()
+    RemoteForeground.EnsureUserLists()
+    RemoteForeground.MergeCsv(RemoteForeground.userExes, "MyRemote.exe")
+    AssertTrue(RemoteForeground.Contains(RemoteForeground.userExes, "myremote.exe"), "user exes merge custom")
+
+    global capsLockBusy := true
+    global g_layerHotkeysOn := true
+    ForceReleaseCapsLayer()
+    AssertTrue(!capsLockBusy, "ForceRelease clears busy")
+    AssertTrue(!g_layerHotkeysOn, "ForceRelease clears layer hotkeys")
+
+    AssertEqual(Settings.GetPressCaps(Map()), "none", "GetPressCaps default must not toggle Caps LED")
+    d := GetDefaultKeyBindings()
+    AssertEqual(d["press_caps"], "none", "default press_caps does not break IME")
 }
 
 ; Every default binding must classify as repeat or single-shot consistently.

@@ -7,6 +7,8 @@
 #Include lib\BindWins.ahk
 #Include lib\Settings.ahk
 #Include lib\CapsRepeatGuard.ahk
+#Include lib\RemoteForeground.ahk
+#Include lib\HotkeyStormDiag.ahk
 
 if IsAlreadyRunning()
     ExitApp(0)
@@ -15,9 +17,7 @@ showLoading := Settings.LoadingAnimationEnabled()
 if showLoading
     LoadAnimation.Show()
 
-global CL_VERSION := "CapsLockX 1.0.0"
-global capsLockHeld := false
-global capsLockTapToggle := true
+global CL_VERSION := "1.0.0"
 global capsLockBusy := false
 global winBinder
 winBinder := BindWins()
@@ -26,7 +26,7 @@ global keyBindings := Map()
 SetStoreCapsLockMode(false)
 SendMode("Input")
 ProcessSetPriority("Normal")
-; CapsLock+ default; burst from CapsLock repeat is mitigated by SetCapsEntryHotkeys(false) during hold.
+; CapsLock+ default; Caps repeat during hold is swallowed by entry hotkey + capsLockBusy skip.
 A_HotkeyInterval := 2000
 A_MaxHotkeysPerInterval := 500
 A_MaxThreadsPerHotkey := 1
@@ -57,78 +57,82 @@ if !IsScriptDirWritable()
     LogCapsLockX("配置目录不可写，窗口绑定/设置可能无法保存")
 
 HandleCapsLockDown(suppressTapToggle := false) {
-    global capsLockHeld, capsLockTapToggle, capsLockBusy, winBinder, keyBindings
-    if capsLockBusy
+    global capsLockBusy, g_layerKeyFired, winBinder, keyBindings
+    if capsLockBusy {
+        HotkeyStormDiag.Note("caps", A_ThisHotkey, "", "busy-skip")
         return
-    capsLockBusy := true
-    capsLockHeld := true
-    if !suppressTapToggle {
-        capsLockTapToggle := true
-        SetTimer(ClearCapsLockTapToggle, -300)
-    } else {
-        capsLockTapToggle := false
+    }
+    if CapsLayerBlocked() {
+        HotkeyStormDiag.Note("caps", A_ThisHotkey, "", "remote-skip " ForegroundBrief())
+        return
+    }
+    HotkeyStormDiag.Note("caps", A_ThisHotkey, "",
+        (suppressTapToggle ? "layer-start-alt" : "layer-start") " " ForegroundBrief())
+    t0 := A_TickCount
+    g_layerKeyFired := false
+
+    ; Keep entry hotkeys On so OS key-repeat cannot reach the system and toggle Caps LED.
+    layerActive := ActivateCapsLayerHotkeys()
+    try {
+        if layerActive
+            WaitForCapsLockRelease()
+    } finally {
+        DeactivateCapsLayerHotkeys()
+        HotkeyStormDiag.Note("caps", "", "", "layer-end")
     }
 
-    SetCapsEntryHotkeys(false)
-    try
-        KeyWait("CapsLock")
-    finally {
-        capsLockHeld := false
-        CapsRepeatGuard.Reset()
-        SetCapsEntryHotkeys(true)
-    }
-
-    if (capsLockTapToggle) {
+    if (!suppressTapToggle && IsCapsTap(g_layerKeyFired, A_TickCount - t0)) {
         spec := Settings.GetPressCaps(keyBindings)
         RunKeyAction(spec, winBinder)
     }
 
     if (winBinder.winTapedX != -1)
         winBinder.WinsSort(winBinder.winTapedX)
-
-    capsLockBusy := false
-}
-
-ClearCapsLockTapToggle(*) {
-    global capsLockTapToggle
-    capsLockTapToggle := false
 }
 
 CapsKeyHandler(settingKey, hotkeyName, *) {
-    global capsLockTapToggle, keyBindings, winBinder
-    capsLockTapToggle := false
+    global g_layerKeyFired, keyBindings, winBinder
+    g_layerKeyFired := true
     try {
         spec := keyBindings.Get(settingKey, "none")
-        if CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+        blocked := CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+        HotkeyStormDiag.Note("layer", hotkeyName, settingKey,
+            blocked ? "blocked" : NormalizeActionSpec(spec))
+        if blocked
             return
-        RunKeyAction(spec, winBinder, hotkeyName)
         if !KeyActionAllowsRepeat(spec)
             CapsRepeatGuard.Arm(hotkeyName)
+        RunKeyAction(spec, winBinder, hotkeyName)
     } catch as err {
         LogCapsLockX("CapsKeyHandler [" settingKey "]: " err.Message)
     }
 }
 
 WinBindHandler(n, hotkeyName, *) {
-    global capsLockTapToggle, keyBindings, winBinder
-    capsLockTapToggle := false
+    global g_layerKeyFired, keyBindings, winBinder
+    g_layerKeyFired := true
     try {
         sk := "caps_win_" n
         spec := keyBindings.Get(sk, "winbind_binding(" n ")")
-        if CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+        blocked := CapsRepeatGuard.ShouldBlock(hotkeyName, spec)
+        HotkeyStormDiag.Note("winbind", hotkeyName, sk, blocked ? "blocked" : spec)
+        if blocked
             return
-        RunKeyAction(spec, winBinder, hotkeyName)
         if !KeyActionAllowsRepeat(spec)
             CapsRepeatGuard.Arm(hotkeyName)
+        RunKeyAction(spec, winBinder, hotkeyName)
     } catch as err {
         LogCapsLockX("WinBindHandler [" n "]: " err.Message)
     }
 }
 
 #Include lib\CapsHotkeys.ahk
+#Include lib\CapsLayer.ahk
 #Include lib\CapsEntry.ahk
 
 RegisterCapsEntryHotkeys()
+SetLayerHotkeys(false)
+CapsLayerWatchdog.Start()
 
 CapsLockX_OnError(exc, mode) {
     LogCapsLockX("OnError mode=" mode " " exc.Message)

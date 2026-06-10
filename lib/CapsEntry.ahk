@@ -1,19 +1,28 @@
 ; CapsLock layer entry — CapsLock+ model: variable flag + KeyWait.
-; While the layer is held, CapsLock hotkeys are turned Off so key-repeat / chatter
-; does not flood A_MaxHotkeysPerInterval (each repeat still counts as a hotkey fire).
+; Entry hotkeys stay On during hold; capsLockBusy skips repeat events (prevents LED toggle).
+
+global g_capsEntryActive := false
+
+CapsEntryPlain(*) => HandleCapsLockDown(false)
+CapsEntryWin(*) => HandleCapsLockDown(true)
 
 RegisterCapsEntryHotkeys() {
-    Hotkey("CapsLock", (*) => HandleCapsLockDown(false), "On")
-    Hotkey("<!CapsLock", (*) => HandleCapsLockDown(true), "On")
-    Hotkey("#CapsLock", (*) => HandleCapsLockDown(true), "On")
+    Hotkey("CapsLock", CapsEntryPlain, "On")
+    Hotkey("#CapsLock", CapsEntryWin, "On")
+    global g_capsEntryActive
+    g_capsEntryActive := true
 }
 
 SetCapsEntryHotkeys(enabled) {
-    if enabled {
-        RegisterCapsEntryHotkeys()
+    global g_capsEntryActive
+    if (enabled = g_capsEntryActive)
         return
+    g_capsEntryActive := enabled
+    if enabled {
+        Hotkey("CapsLock", CapsEntryPlain, "On")
+        Hotkey("#CapsLock", CapsEntryWin, "On")
+    } else {
+        try Hotkey("CapsLock", "Off")
+        try Hotkey("#CapsLock", "Off")
     }
-    try Hotkey("CapsLock", "Off")
-    try Hotkey("<!CapsLock", "Off")
-    try Hotkey("#CapsLock", "Off")
 }

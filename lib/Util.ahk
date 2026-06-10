@@ -79,6 +79,13 @@ SafeIniDelete(iniPath, section, key := "") {
     }
 }
 
+ForegroundBrief() {
+    try
+        return WinGetProcessName("A") " | " SubStr(WinGetTitle("A"), 1, 60)
+    catch
+        return "?"
+}
+
 SafeFileAppend(content, path, encoding := "UTF-8") {
     try {
         FileAppend(content, path, encoding)
