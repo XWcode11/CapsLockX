@@ -1,11 +1,11 @@
-; Caps layer — CapsLock+ #If CapsLock: static hotkeys only (never runtime Hotkey() loop).
-; v2 extras: $ hook prefix, #InputLevel 1, CapsSend(SendLevel 0) against Send feedback.
+; Caps layer — CapsLock+ #If CapsLock: static hotkeys (parallel threads, works with KeyWait).
+; #InputLevel 1 + CapsSend(SendLevel 0): script Send must not re-trigger layer keys (v2 SendLevel docs).
 
 #InputLevel 1
 
 #HotIf capsLockHeld
 
-$LAlt:: return ; CapsLock+ blocks LAlt while layer is active
+$LAlt:: return
 
 $a:: CapsKeyHandler("caps_a", A_ThisHotkey)
 $b:: CapsKeyHandler("caps_b", A_ThisHotkey)
