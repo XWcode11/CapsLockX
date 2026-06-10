@@ -9,7 +9,7 @@ PhysicalKeyFromHotkey(hotkeyName) {
 
 class CapsRepeatGuard {
     static blocked := Map()
-    static pollTimer := ""
+    static pollFn := ""
 
     static ShouldBlock(hotkeyName, spec) {
         if KeyActionAllowsRepeat(spec)
@@ -25,15 +25,22 @@ class CapsRepeatGuard {
     }
 
     static EnsurePoll() {
-        if this.pollTimer
+        if this.pollFn
             return
-        this.pollTimer := SetTimer(this.Poll.Bind(this), 20)
+        this.pollFn := this.Poll.Bind(this)
+        SetTimer(this.pollFn, 20)
+    }
+
+    static StopPoll() {
+        if !this.pollFn
+            return
+        SetTimer(this.pollFn, 0)
+        this.pollFn := ""
     }
 
     static Poll() {
         if !this.blocked.Count {
-            SetTimer(this.pollTimer, 0)
-            this.pollTimer := ""
+            this.StopPoll()
             return
         }
         remove := []
@@ -43,17 +50,12 @@ class CapsRepeatGuard {
         }
         for hk in remove
             this.blocked.Delete(hk)
-        if !this.blocked.Count {
-            SetTimer(this.pollTimer, 0)
-            this.pollTimer := ""
-        }
+        if !this.blocked.Count
+            this.StopPoll()
     }
 
     static Reset() {
         this.blocked := Map()
-        if this.pollTimer {
-            SetTimer(this.pollTimer, 0)
-            this.pollTimer := ""
-        }
+        this.StopPoll()
     }
 }
