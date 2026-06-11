@@ -101,10 +101,8 @@ class BindWins {
             this.tapCounts[btnx] := 1
 
         if (hotkeyName != "" && hotkeyName = A_PriorHotkey && A_TimeSincePriorHotkey < 500) {
-            if (this.tapCounts[btnx] < 2)
-                this.tapCounts[btnx] := 2
-            else
-                this.tapCounts[btnx] := 3
+            if (this.tapCounts[btnx] < 4)
+                this.tapCounts[btnx]++
         }
     }
 
@@ -121,7 +119,21 @@ class BindWins {
         this.gettingWinInfo := false
     }
 
+    ; Caps+Win+N x4: clear slot (no foreground window required).
+    ClearGroup(btnx) {
+        gx := this.Group(btnx)
+        hadBinding := gx.bindType != 0 || gx.wins.Length > 0
+        gx.bindType := 0
+        gx.wins := []
+        this.SaveGroup(btnx)
+        NotifyWinBind(btnx, 4, true, hadBinding ? "" : "槽位本就未绑定")
+    }
+
     GetWinInfo(btnx, bindType) {
+        if (bindType = 4) {
+            this.ClearGroup(btnx)
+            return
+        }
         winId := WinExist("A")
         if !winId {
             NotifyWinBind(btnx, bindType, false, "未检测到活动窗口")

@@ -192,6 +192,39 @@ RunBindWinsTests() {
     AssertEqual(g3.wins.Length, 0, "unbound group 3 empty")
 }
 
+; --- BindWins unbind (bindType 4 / Caps+Win+N x4) ---
+RunBindWinsUnbindTests() {
+    src := A_ScriptDir "\fixtures\wins_sample.ini"
+    path := A_Temp "\capslockx_wins_unbind_" A_TickCount ".ini"
+    try FileDelete(path)
+    FileCopy(src, path, 1)
+
+    bw := TestBindWins(path)
+    bw.Init()
+    AssertEqual(bw.Group(1).bindType, 1, "fixture slot 1 bound before unbind")
+
+    bw.GetWinInfo(1, 4)
+    AssertEqual(bw.Group(1).bindType, 0, "ClearGroup resets bindType")
+    AssertEqual(bw.Group(1).wins.Length, 0, "ClearGroup clears wins")
+
+    bw2 := TestBindWins(path)
+    bw2.Init()
+    AssertEqual(bw2.Group(1).bindType, 0, "unbind persisted to ini")
+    AssertEqual(IniRead(path, "1", "bindType", "gone"), "gone", "unbind removes ini section")
+
+    bw3 := TestBindWins(path)
+    bw3.GetWinInfo(3, 4)
+    AssertEqual(bw3.Group(3).bindType, 0, "unbind empty slot is no-op")
+
+    rec := RecordingBindWins(A_Temp "\capslockx_wins_tap4_" A_TickCount ".ini")
+    rec.tapBtn := 7
+    rec.tapCounts[7] := 4
+    rec.DoGetWinInfo()
+    AssertEqual(rec.getWinInfoCalls[1], "7:4", "DoGetWinInfo dispatches tap count 4")
+
+    try FileDelete(path)
+}
+
 ; --- BindWins SaveGroup/Init roundtrip on a temp ini ---
 RunBindWinsRoundtripTests() {
     tempIni := A_Temp "\capslockx_wins_test_" A_TickCount ".ini"
@@ -357,6 +390,7 @@ RunLegacySpecTests()
 RunDefaultBindingsTests()
 RunSettingsTests()
 RunBindWinsTests()
+RunBindWinsUnbindTests()
 RunBindWinsRoundtripTests()
 RunWinsSortTests()
 RunKeyActionTests()

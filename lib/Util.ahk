@@ -39,6 +39,13 @@ NotifyWinBind(btnx, bindType, success, detail := "") {
             TrayTip("窗口绑定失败", detail != "" ? detail : "槽位 " btnx, "Icon! 2")
             return
         }
+        if (bindType = 4) {
+            msg := "槽位 " btnx " 已解绑"
+            if (detail != "")
+                msg .= "`n" detail
+            TrayTip("窗口解绑", msg, "Iconi 1")
+            return
+        }
         mode := bindType = 1 ? "单窗口" : bindType = 2 ? "多窗口" : bindType = 3 ? "同程序全窗口" : ""
         TrayTip("窗口绑定", "槽位 " btnx (mode != "" ? "：" mode : ""), "Iconi 1")
     } catch {
