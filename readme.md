@@ -49,6 +49,7 @@ Build a fresh exe: `.\build.ps1` → output in `release/`.
 | **Caps + Win + 1** (tap once) | Bind active window to slot 1 (single-window mode) |
 | **Caps + Win + 1** (tap twice) | Add to slot 1 (multi-window mode) |
 | **Caps + Win + 1** (tap three times) | Bind all windows of same app (type 3) |
+| **Caps + Win + 1** (tap four times) | **Clear** slot 1 window binding |
 
 ### Default movement & selection (hold Caps)
 
